@@ -16,71 +16,32 @@ const RailDetails = () => {
     const { token } = useSelector((state) => state.auth);
 
     const [showTable, setShowTable] = useState(false);
+    const [tableData, setTableData] = useState([]);
 
-    const processData = (data) => {
-      if (!Array.isArray(data)) {
-        console.error("Invalid data passed to processData:", data);
-        return [];
-      }
-
-      const filteredData = data.filter((item) => item.resultStatus === "fail");
-      const groupedData = {};
+    const handleShowTable = () => {
+      const filteredData = dataSource.filter(item => item.resultStatus === "fail");
+      const aggregatedData = {};
   
-      filteredData.forEach((item) => {
-        const key = item.cameraId;
-
-        const defectTypeArray = Array.isArray(item?.defectType) ? item.defectType : [];
-        const distanceFromHead = item?.distanceFromHead ? [item.distanceFromHead] : [];
-
-        if (!groupedData[key]) {
-          groupedData[key] = {
-            railId: item.railId || '',
-            cameraId: item.cameraId || '',
-            cameraName: item.cameraName || '',
-            clubbedDefectType: new Set(defectTypeArray),
-            clubbedDistanceFromHead: new Set(distanceFromHead),
+      filteredData.forEach(item => {
+        const key = `${item.cameraId}-${item.cameraName}`;
+        if (!aggregatedData[key]) {
+          aggregatedData[key] = {
+            railId: item.railId,
+            cameraId: item.cameraId,
+            cameraName: item.cameraName,
+            defectType: [...new Set(item.defectType)],
+            distanceFromHead: [item.distanceFromHead] 
           };
         } else {
-          defectTypeArray.forEach((defect) => groupedData[key].clubbedDefectType.add(defect));
-          distanceFromHead.forEach((distance) => groupedData[key].clubbedDistanceFromHead.add(distance));
+          if (!aggregatedData[key].distanceFromHead.includes(item.distanceFromHead)) {
+            aggregatedData[key].distanceFromHead.push(item.distanceFromHead);
+          }
         }
       });
-  
-      return Object.values(groupedData).map((item) => ({
-        ...item,
-        clubbedDefectType: Array.from(item.defectType || []),
-        clubbedDistanceFromHead: Array.from(item.distanceFromHead || []),
-      }));
+      
+      setTableData(Object.values(aggregatedData));
+      setShowTable(true);
     };
-
-    const tableData = processData(dataSource).map((item, index) => ({
-      key: index,
-      ...item,
-    }));
-
-    // const summarizeFailData = (data) => {
-    //   const summary = {};
-  
-    //   data.forEach((item) => {
-    //     if (item.resultStatus === "fail") {
-    //       if (!summary[item.cameraId]) {
-    //         summary[item.cameraId] = {
-    //           cameraId: item.cameraId,
-    //           cameraName: item.cameraName,
-    //           clubbedDefectType: [],
-    //         };
-    //       }
-          
-    //       if (!summary[item.cameraId].clubbedDefectType.includes(item.defectType)) {
-    //         summary[item.cameraId].clubbedDefectType.push(item.defectType);
-    //       }
-    //     }
-    //   });
-  
-    //   return Object.values(summary);
-    // };
-
-    // const summarizedData = summarizeFailData(dataSource);
     
     useEffect(() => {
       const fetchRailDetails = async () => {
@@ -229,20 +190,32 @@ const RailDetails = () => {
     ];
 
     const clubbedColumns = [
-      { title: "Rail ID", dataIndex: "railId", key: "railId" },
-      { title: "Camera ID", dataIndex: "cameraId", key: "cameraId" },
-      { title: "Camera Name", dataIndex: "cameraName", key: "cameraName" },
       {
-        title: "Defect Types",
-        dataIndex: "clubbedDefectType",
-        key: "clubbedDefectType",
-        render: (defects) => defects.join(', '),
+        title: 'Rail ID',
+        dataIndex: 'railId',
+        key: 'railId',
       },
       {
-        title: "Distances From Head",
-        dataIndex: "clubbedDistanceFromHead",
-        key: "clubbedDistanceFromHead",
-        render: (distances) => distances.join(', '),
+        title: 'Camera ID',
+        dataIndex: 'cameraId',
+        key: 'cameraId',
+      },
+      {
+        title: 'Camera Name',
+        dataIndex: 'cameraName',
+        key: 'cameraName',
+      },
+      {
+        title: 'Defect Types',
+        dataIndex: 'defectType',
+        key: 'defectType',
+        render: defectType => defectType.join(', '), // Join array to display as string
+      },
+      {
+        title: 'Distances From Head',
+        dataIndex: 'distanceFromHead',
+        key: 'distanceFromHead',
+        render: distanceFromHead => distanceFromHead.join(', '), // Join array to display as string
       },
     ];
 
@@ -252,14 +225,15 @@ const RailDetails = () => {
       <TableComponent dataSource={dataSource} columns={columns} bordered/>
 
       <div className='flex justify-center'>
-        <Btn type="primary" className='w-36' onClick={() => setShowTable((prev) => !prev)}>Summarized Data</Btn>
+        <Btn type="primary" className='w-36' onClick={handleShowTable}>Summarized Data</Btn>
       </div>
 
       {showTable && (
         <TableComponent
-          dataSource={tableData.map((item, index) => ({ ...item, key: index }))}
+          dataSource={tableData}
           columns={clubbedColumns}
-          rowKey={(record) => record.cameraId}
+          rowKey="cameraId"
+          loading={loading}
           pagination={false}
           bordered
         />
